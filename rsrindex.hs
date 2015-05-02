@@ -1,9 +1,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 --{-# LANGUAGE ConstraintKinds #-}
 module RSRIndex (
-    calcIndex
-    AssetSale(...)
-    Asset(...)
+	generateSalePairs,
+    calcIndex,
+    mapSalePairToRSRRow,
+    getDateLimits,
+    getLogPriceRatio,
+    AssetSale(..),
+    Asset(..),
+    SalePairSet
 )
 where
 
@@ -24,7 +29,7 @@ class (Eq a, Show a, Ord a) => Asset a where
 
 data AssetSale a = AssetSale { date :: UTCTime
 							, price :: Int
-							, assetId :: a  }
+							, assetId :: a  } deriving (Eq, Show, Ord)
 
 type SalePairSet a = ([(AssetSale a, AssetSale a)], M.Map a (AssetSale a))
 
@@ -49,11 +54,11 @@ getLogPriceRatio salePair = log ((fromIntegral (price (snd salePair))) / (fromIn
 --parseListPropertySales strSalesList = [ mapPricePaidDataToPropertySale x | x <- strSalesList ]
 
 
-generateSalePairs :: Asset a => [AssetSale a] -> SalePairSet a -> SalePairSet a
+generateSalePairs :: Asset a => [AssetSale a] -> SalePairSet a
 -- inefficient (n^2 time) NAIVE SOLUTION:
 --generatePropertySalePairs salesList = [(a,b) | a<- salesList, b<-salesList, (location a)==(location b), a/=b, (date b) > (date a) ]	
 -- nicer fold solution (n log m) where m <=n (number of locations)
-generateSalePairs salesList salesPairsInit = foldr (matchSale) (salesPairsInit) salesList
+generateSalePairs salesList = foldr (matchSale) ([], M.empty) salesList
 
 --for use in fold
 --assuming base list is already sorted by date
@@ -62,7 +67,7 @@ matchSale sale existingSalePairs =
 	--Not sure if we need to filter: filter (\x -> (sale/=x && (date sale) > (date x)))
 	case (M.lookup (assetId sale) (snd existingSalePairs)) of
 	    -- if there is a sale with matching location we already encountered
-	    Just value -> (((value, sale):(fst existingSalePairs)), (M.insert (assetId sale) sale (snd existingSalePairs)))
+	    Just value -> (((sale, value):(fst existingSalePairs)), (M.insert (assetId sale) sale (snd existingSalePairs)))
 	    --if no sale for this location encountered
 	    Nothing -> ((fst existingSalePairs), (M.insert (assetId sale) sale (snd existingSalePairs)))
 
